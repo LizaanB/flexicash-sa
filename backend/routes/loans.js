@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Loan = require('../models/Loan');
+const Notification = require('../models/Notification');
 const { protect, authorize } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { notifyLoanApplication, notifyLoanApproved, notifyLoanRejected, notifyLoanDisbursed } = require('../utils/emailNotifications');
 
 // @route   POST /api/loans/apply
 // @desc    Apply for a loan
@@ -47,6 +49,20 @@ router.post('/apply', protect, upload.array('bankStatements', 3), async (req, re
     });
 
     const populatedLoan = await Loan.findById(loan._id).populate('customer', 'name email phone');
+
+    // Create in-app notification
+    await Notification.create({
+      user: req.user._id,
+      type: 'loan_applied',
+      title: 'Loan Application Submitted',
+      message: `Your loan application for R${amount} has been submitted and is under review.`,
+      loan: loan._id
+    });
+
+    // Send email notification
+    if (process.env.EMAIL_USER) {
+      notifyLoanApplication(req.user, loan).catch(err => console.error('Email error:', err));
+    }
 
     res.status(201).json({
       success: true,
@@ -175,6 +191,20 @@ router.put('/:id/approve', protect, authorize('admin'), async (req, res) => {
       .populate('customer', 'name email phone')
       .populate('approvedBy', 'name email');
 
+    // Create in-app notification
+    await Notification.create({
+      user: updatedLoan.customer._id,
+      type: 'loan_approved',
+      title: '✅ Loan Approved!',
+      message: `Congratulations! Your loan application for R${updatedLoan.amount} has been approved.`,
+      loan: loan._id
+    });
+
+    // Send email notification
+    if (process.env.EMAIL_USER) {
+      notifyLoanApproved(updatedLoan.customer, updatedLoan).catch(err => console.error('Email error:', err));
+    }
+
     res.json({
       success: true,
       data: updatedLoan
@@ -218,6 +248,20 @@ router.put('/:id/reject', protect, authorize('admin'), async (req, res) => {
     const updatedLoan = await Loan.findById(loan._id)
       .populate('customer', 'name email phone')
       .populate('approvedBy', 'name email');
+
+    // Create in-app notification
+    await Notification.create({
+      user: updatedLoan.customer._id,
+      type: 'loan_rejected',
+      title: 'Loan Application Update',
+      message: `Your loan application for R${updatedLoan.amount} has been reviewed. ${reason || 'Please contact us for more information.'}`,
+      loan: loan._id
+    });
+
+    // Send email notification
+    if (process.env.EMAIL_USER) {
+      notifyLoanRejected(updatedLoan.customer, updatedLoan).catch(err => console.error('Email error:', err));
+    }
 
     res.json({
       success: true,
@@ -263,6 +307,20 @@ router.put('/:id/disburse', protect, authorize('admin'), async (req, res) => {
     const updatedLoan = await Loan.findById(loan._id)
       .populate('customer', 'name email phone')
       .populate('approvedBy', 'name email');
+
+    // Create in-app notification
+    await Notification.create({
+      user: updatedLoan.customer._id,
+      type: 'loan_disbursed',
+      title: '💰 Funds Disbursed!',
+      message: `Your loan of R${updatedLoan.amount} has been disbursed. Please ensure timely repayment.`,
+      loan: loan._id
+    });
+
+    // Send email notification
+    if (process.env.EMAIL_USER) {
+      notifyLoanDisbursed(updatedLoan.customer, updatedLoan).catch(err => console.error('Email error:', err));
+    }
 
     res.json({
       success: true,

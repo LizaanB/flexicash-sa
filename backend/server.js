@@ -59,6 +59,7 @@ mongoose.connect(process.env.MONGODB_URI)
 app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/loans', require('./routes/loans'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Health check
 app.get('/api/health', (req, res) => {

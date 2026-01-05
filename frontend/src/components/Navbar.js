@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
+import Notifications from './Notifications';
 
 function Navbar() {
   const { user, logout } = useContext(AuthContext);
@@ -23,6 +24,7 @@ function Navbar() {
             <span style={{ opacity: 0.8 }}>
               {user.name} ({user.role})
             </span>
+            <Notifications />
             <button onClick={logout}>Logout</button>
           </nav>
         )}
