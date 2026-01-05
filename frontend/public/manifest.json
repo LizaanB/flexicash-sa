@@ -1,0 +1,16 @@
+{
+  "short_name": "FlexiCash SA",
+  "name": "FlexiCash SA - Quick Cash Loans",
+  "icons": [
+    {
+      "src": "flexicash-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0891b2",
+  "background_color": "#ffffff",
+  "description": "Apply for cash loans up to R5,000 - Fast approval, easy repayment"
+}
