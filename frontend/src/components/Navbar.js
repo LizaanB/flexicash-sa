@@ -8,7 +8,9 @@ function Navbar() {
   return (
     <div className="navbar">
       <div className="navbar-content">
-        <h1>� FlexiCash SA</h1>
+        <div className="navbar-logo">
+          <img src="/flexicash-logo.png" alt="FlexiCash SA" />
+        </div>
         {user && (
           <nav>
             <Link to="/">Dashboard</Link>

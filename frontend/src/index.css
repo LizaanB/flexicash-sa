@@ -44,6 +44,11 @@ code {
   font-size: 1.5rem;
 }
 
+.navbar-logo img {
+  height: 60px;
+  width: auto;
+}
+
 .navbar nav {
   display: flex;
   gap: 2rem;
