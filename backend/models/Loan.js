@@ -22,7 +22,7 @@ const loanSchema = new mongoose.Schema({
     default: 1,
     required: [true, 'Please provide loan duration in months'],
     min: [1, 'Minimum duration is 1 month'],
-    max: [1, 'Maximum duration is 1 month']
+    max: [12, 'Maximum duration is 12 months']
   },
   totalAmount: {
     type: Number
