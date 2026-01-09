@@ -10,6 +10,11 @@ function AdminDashboard() {
   const [success, setSuccess] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectingLoanId, setRejectingLoanId] = useState(null);
+  const [editingLoanId, setEditingLoanId] = useState(null);
+  const [editedAmount, setEditedAmount] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [debitOrderLoanId, setDebitOrderLoanId] = useState(null);
+  const [debitOrderAmount, setDebitOrderAmount] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -67,6 +72,66 @@ function AdminDashboard() {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to disburse loan');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleUpdateAmount = async (loanId) => {
+    try {
+      if (!editedAmount || editedAmount < 100 || editedAmount > 5000) {
+        setError('Please enter a valid amount between R100 and R5,000');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+      
+      await api.put(`/loans/${loanId}/update-amount`, { 
+        amount: editedAmount,
+        reason: editReason 
+      });
+      
+      setSuccess(`Loan amount updated to R${parseFloat(editedAmount).toLocaleString()}`);
+      setEditingLoanId(null);
+      setEditedAmount('');
+      setEditReason('');
+      fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update loan amount');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleInitiateDebitOrder = async (loanId) => {
+    try {
+      if (!debitOrderAmount || debitOrderAmount < 100) {
+        setError('Please enter a valid debit order amount');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+      
+      await api.post(`/loans/${loanId}/initiate-debit-order`, { 
+        amount: parseFloat(debitOrderAmount)
+      });
+      
+      setSuccess('DebiCheck request sent to customer for approval!');
+      setDebitOrderLoanId(null);
+      setDebitOrderAmount('');
+      fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to initiate debit order');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleCancelDebitOrder = async (loanId) => {
+    try {
+      await api.put(`/loans/${loanId}/cancel-debit-order`);
+      setSuccess('Debit order cancelled');
+      fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to cancel debit order');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -234,34 +299,89 @@ function AdminDashboard() {
                 <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
                   <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: '600' }}>Bank Statements:</p>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {loan.bankStatements.map((statement, index) => (
-                      <a
-                        key={index}
-                        href={`http://localhost:5000/uploads/bank-statements/${statement.filename}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ 
-                          fontSize: '0.875rem', 
-                          color: '#0891b2',
-                          textDecoration: 'none',
-                          padding: '0.25rem 0.75rem',
-                          backgroundColor: 'white',
-                          borderRadius: '4px',
-                          border: '1px solid #e5e7eb'
-                        }}
-                      >
-                        📄 {statement.originalName || `Statement ${index + 1}`}
-                      </a>
-                    ))}
+                    {loan.bankStatements.map((statement, index) => {
+                      const fileUrl = `http://localhost:5000/uploads/bank-statements/${statement.filename}`;
+                      console.log('Bank statement URL:', fileUrl);
+                      return (
+                        <a
+                          key={index}
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ 
+                            fontSize: '0.875rem', 
+                            color: '#0891b2',
+                            textDecoration: 'none',
+                            padding: '0.25rem 0.75rem',
+                            backgroundColor: 'white',
+                            borderRadius: '4px',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s',
+                            cursor: 'pointer'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0f2fe'}
+                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                        >
+                          📄 {statement.originalName || `Statement ${index + 1}`}
+                        </a>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
               {loan.status === 'pending' && (
-                <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
-                  {rejectingLoanId === loan._id ? (
-                    <div style={{ flex: 1 }}>
+                <div style={{ paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+                  {console.log('Rendering pending loan actions for loan:', loan._id, 'Status:', loan.status)}
+                  {editingLoanId === loan._id ? (
+                    <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fcd34d' }}>
+                      <h4 style={{ marginBottom: '0.75rem', fontSize: '0.875rem', color: '#92400e' }}>Edit Loan Amount</h4>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#6b7280' }}>New Amount (R)</label>
+                        <input
+                          type="number"
+                          placeholder="Enter new amount"
+                          value={editedAmount}
+                          onChange={(e) => setEditedAmount(e.target.value)}
+                          min="100"
+                          max="5000"
+                          step="100"
+                          style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                        />
+                        <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Original: R{loan.amount.toLocaleString()} | Range: R100 - R5,000</small>
+                      </div>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.25rem', color: '#6b7280' }}>Reason for Change</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Approved for lower amount based on affordability"
+                          value={editReason}
+                          onChange={(e) => setEditReason(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => handleUpdateAmount(loan._id)}
+                        >
+                          Update Amount
+                        </button>
+                        <button 
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setEditingLoanId(null);
+                            setEditedAmount('');
+                            setEditReason('');
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : rejectingLoanId === loan._id ? (
+                    <div style={{ marginBottom: '1rem' }}>
                       <input
                         type="text"
                         placeholder="Reason for rejection"
@@ -287,21 +407,33 @@ function AdminDashboard() {
                         </button>
                       </div>
                     </div>
-                  ) : (
-                    <>
+                  ) : null}
+                  
+                  {!editingLoanId && !rejectingLoanId && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button 
                         className="btn btn-success"
                         onClick={() => handleApprove(loan._id)}
                       >
-                        Approve
+                        ✓ Approve
+                      </button>
+                      <button 
+                        className="btn btn-primary"
+                        style={{ backgroundColor: '#f59e0b' }}
+                        onClick={() => {
+                          setEditingLoanId(loan._id);
+                          setEditedAmount(loan.amount);
+                        }}
+                      >
+                        ✏️ Edit Amount
                       </button>
                       <button 
                         className="btn btn-danger"
                         onClick={() => setRejectingLoanId(loan._id)}
                       >
-                        Reject
+                        ✗ Reject
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               )}
@@ -314,6 +446,105 @@ function AdminDashboard() {
                   >
                     Mark as Disbursed (Funds Paid)
                   </button>
+                </div>
+              )}
+
+              {/* Debit Order Management for Disbursed Loans */}
+              {loan.status === 'disbursed' && (
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+                  <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: '#374151' }}>
+                    💳 DebiCheck / Debit Order Management
+                  </h4>
+                  
+                  {loan.debitOrder?.status === 'none' || !loan.debitOrder ? (
+                    debitOrderLoanId === loan._id ? (
+                      <div style={{ padding: '1rem', backgroundColor: '#eff6ff', borderRadius: '4px', border: '1px solid #3b82f6' }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#1e40af' }}>
+                          Monthly Debit Order Amount (R)
+                        </label>
+                        <input
+                          type="number"
+                          value={debitOrderAmount}
+                          onChange={(e) => setDebitOrderAmount(e.target.value)}
+                          placeholder={`Suggested: R${loan.monthlyPayment.toFixed(2)}`}
+                          min="100"
+                          style={{ width: '100%', padding: '0.5rem', marginBottom: '0.75rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                        />
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="btn btn-primary"
+                            onClick={() => handleInitiateDebitOrder(loan._id)}
+                            style={{ fontSize: '0.875rem' }}
+                          >
+                            📤 Send DebiCheck Request to Customer
+                          </button>
+                          <button 
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              setDebitOrderLoanId(null);
+                              setDebitOrderAmount('');
+                            }}
+                            style={{ fontSize: '0.875rem' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                          Customer will receive a notification to approve the debit order and provide their bank details.
+                        </p>
+                      </div>
+                    ) : (
+                      <button 
+                        className="btn btn-primary"
+                        onClick={() => {
+                          setDebitOrderLoanId(loan._id);
+                          setDebitOrderAmount(loan.monthlyPayment.toFixed(2));
+                        }}
+                        style={{ fontSize: '0.875rem', backgroundColor: '#3b82f6' }}
+                      >
+                        🏦 Set Up DebiCheck
+                      </button>
+                    )
+                  ) : loan.debitOrder.status === 'pending_approval' ? (
+                    <div style={{ padding: '1rem', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fbbf24' }}>
+                      <p style={{ fontSize: '0.875rem', color: '#92400e', marginBottom: '0.5rem' }}>
+                        ⏳ <strong>Awaiting Customer Approval</strong>
+                      </p>
+                      <p style={{ fontSize: '0.875rem', color: '#78350f' }}>
+                        DebiCheck request sent on {new Date(loan.debitOrder.requestedAt).toLocaleDateString()}. 
+                        Customer needs to approve and provide bank details.
+                      </p>
+                      <button 
+                        className="btn btn-secondary"
+                        onClick={() => handleCancelDebitOrder(loan._id)}
+                        style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}
+                      >
+                        Cancel Request
+                      </button>
+                    </div>
+                  ) : loan.debitOrder.status === 'approved' || loan.debitOrder.status === 'active' ? (
+                    <div style={{ padding: '1rem', backgroundColor: '#d1fae5', borderRadius: '4px', border: '1px solid #10b981' }}>
+                      <p style={{ fontSize: '0.875rem', color: '#065f46', marginBottom: '0.5rem' }}>
+                        ✓ <strong>DebiCheck Active</strong>
+                      </p>
+                      <div style={{ fontSize: '0.875rem', color: '#047857' }}>
+                        <p>Amount: <strong>R{loan.debitOrder.amount?.toLocaleString()}</strong> {loan.debitOrder.frequency}</p>
+                        <p>Bank: {loan.debitOrder.bankDetails?.bankName}</p>
+                        <p>Account: ****{loan.debitOrder.bankDetails?.accountNumber?.slice(-4)}</p>
+                        <p>Next Debit: {loan.debitOrder.nextDebitDate ? new Date(loan.debitOrder.nextDebitDate).toLocaleDateString() : 'Pending'}</p>
+                        <p style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                          Approved: {new Date(loan.debitOrder.approvedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button 
+                        className="btn btn-danger"
+                        onClick={() => handleCancelDebitOrder(loan._id)}
+                        style={{ fontSize: '0.875rem', marginTop: '0.75rem' }}
+                      >
+                        Cancel DebiCheck
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
 

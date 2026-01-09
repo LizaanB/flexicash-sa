@@ -9,7 +9,7 @@ const { protect, authorize } = require('../middleware/auth');
 // @access  Private (Customer)
 router.post('/make-payment', protect, async (req, res) => {
   try {
-    const { loanId, amount, paymentMethod, reference, notes } = req.body;
+    const { loanId, amount, paymentMethod, reference, notes, bankDetails } = req.body;
 
     // Get loan
     const loan = await Loan.findById(loanId);
@@ -44,15 +44,35 @@ router.post('/make-payment', protect, async (req, res) => {
       });
     }
 
+    // Validate bank details for debit order/EasyPay
+    if (paymentMethod === 'debit_order' || paymentMethod === 'easypay') {
+      if (!bankDetails || !bankDetails.accountHolder || !bankDetails.accountNumber || 
+          !bankDetails.bankName || !bankDetails.branchCode) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bank account details are required for debit order payments'
+        });
+      }
+    }
+
     // Create payment
-    const payment = await Payment.create({
+    const paymentData = {
       loan: loanId,
       customer: req.user._id,
       amount,
       paymentMethod,
       reference,
       notes
-    });
+    };
+
+    // Add bank details for debit order
+    if (paymentMethod === 'debit_order' || paymentMethod === 'easypay') {
+      paymentData.bankDetails = bankDetails;
+      paymentData.status = 'pending'; // Debit orders need to be processed
+      paymentData.notes = `${paymentData.notes || ''} Debit order mandate authorized for ${bankDetails.bankName} account ending in ${bankDetails.accountNumber.slice(-4)}`.trim();
+    }
+
+    const payment = await Payment.create(paymentData);
 
     // Update loan
     loan.amountPaid += amount;

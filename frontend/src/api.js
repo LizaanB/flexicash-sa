@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || 'https://protective-solace-production-b001.up.railway.app/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -23,4 +23,28 @@ api.interceptors.request.use(
   }
 );
 
+// Handle response errors
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // Log the error for debugging
+    console.error('API Interceptor Error:', error);
+    console.error('Status:', error.response?.status);
+    console.error('URL:', error.config?.url);
+    
+    // Don't auto-redirect on 401 during loan application
+    // Let the component handle it
+    if (error.response?.status === 401 && !error.config?.url?.includes('/loans/apply')) {
+      console.error('Authentication failed - redirecting to login');
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 export default api;
+

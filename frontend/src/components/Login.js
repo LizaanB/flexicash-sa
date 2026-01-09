@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
+import Loading from './Loading';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -33,6 +34,10 @@ function Login() {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return <Loading message="Signing you in..." />;
+  }
 
   return (
     <div className="form-container">

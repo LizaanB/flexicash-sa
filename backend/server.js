@@ -28,16 +28,16 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Stricter rate limit for auth routes
+// Stricter rate limit for auth routes (increased for development)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 100, // Increased from 5 to 100 for development
   message: 'Too many login attempts, please try again after 15 minutes.'
 });
 
-// CORS Configuration
+// CORS Configuration - Allow all origins for mobile app
 const corsOptions = {
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: true, // Allow all origins (mobile apps need this)
   credentials: true,
   optionsSuccessStatus: 200
 };

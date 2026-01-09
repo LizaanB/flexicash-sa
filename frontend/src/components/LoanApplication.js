@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useContext, useRef, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { AuthContext } from '../AuthContext';
 import api from '../api';
 
 function LoanApplication() {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  
   const [formData, setFormData] = useState({
     amount: '',
     duration: '1', // Fixed to 1 month
@@ -12,7 +17,29 @@ function LoanApplication() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [hasActiveApplication, setHasActiveApplication] = useState(false);
+  
+  // Check for existing applications on mount
+  useEffect(() => {
+    checkExistingLoans();
+  }, []);
+  
+  const checkExistingLoans = async () => {
+    try {
+      const response = await api.get('/loans/my-loans');
+      const loans = response.data.data;
+      const activeLoan = loans.find(loan => 
+        ['pending', 'approved'].includes(loan.status)
+      );
+      
+      if (activeLoan) {
+        setHasActiveApplication(true);
+        setError(`You already have a ${activeLoan.status} loan application. Please check "My Loans" page or wait for admin to process it.`);
+      }
+    } catch (err) {
+      console.error('Error checking loans:', err);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -25,10 +52,23 @@ function LoanApplication() {
     const files = Array.from(e.target.files);
     if (files.length > 3) {
       setError('You can only upload up to 3 bank statements');
+      e.target.value = ''; // Reset the input
       return;
     }
+    
+    // Validate file sizes (max 5MB each)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    const oversizedFiles = files.filter(file => file.size > maxSize);
+    
+    if (oversizedFiles.length > 0) {
+      setError(`File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Max size is 5MB per file.`);
+      e.target.value = ''; // Reset the input
+      return;
+    }
+    
     setBankStatements(files);
     setError('');
+    console.log('Files selected:', files.map(f => f.name));
   };
 
   const calculateLoan = () => {
@@ -46,40 +86,116 @@ function LoanApplication() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('=== FORM SUBMISSION STARTED ===');
+    console.log('User:', user);
+    console.log('Form data:', formData);
+    console.log('Bank statements:', bankStatements);
+    console.log('Token:', localStorage.getItem('token'));
+    
     setError('');
     setSuccess('');
     setLoading(true);
+    
+    // Check user role
+    if (user && user.role !== 'customer') {
+      setError('Only customers can apply for loans');
+      setLoading(false);
+      return;
+    }
 
     if (bankStatements.length === 0) {
       setError('Please upload at least one bank statement');
       setLoading(false);
       return;
     }
+    
+    // Validate amount
+    if (!formData.amount || formData.amount < 100 || formData.amount > 5000) {
+      setError('Please enter a valid loan amount between R100 and R5,000');
+      setLoading(false);
+      return;
+    }
 
     try {
+      console.log('Preparing form data...');
       const formDataToSend = new FormData();
       formDataToSend.append('amount', formData.amount);
       formDataToSend.append('duration', formData.duration);
       formDataToSend.append('purpose', formData.purpose);
       
       // Append bank statements
-      bankStatements.forEach((file) => {
+      bankStatements.forEach((file, index) => {
+        console.log(`Appending file ${index + 1}:`, file.name, file.size, 'bytes');
         formDataToSend.append('bankStatements', file);
       });
 
-      await api.post('/loans/apply', formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      console.log('Sending request to /loans/apply...');
+      console.log('API Base URL:', api.defaults.baseURL);
+      
+      const response = await api.post('/loans/apply', formDataToSend);
+      
+      console.log('=== SUBMISSION SUCCESSFUL ===');
+      console.log('Response:', response.data);
+      
+      // Don't redirect immediately - show success message first
+      setSuccess('Loan application submitted successfully! Redirecting in 2 seconds...');
+      
+      // Reset form
+      setFormData({
+        amount: '',
+        duration: '1',
+        purpose: ''
       });
-      setSuccess('Loan application submitted successfully!');
+      setBankStatements([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
       setTimeout(() => {
         navigate('/my-loans');
       }, 2000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit application');
+      console.error('=== SUBMISSION FAILED ===');
+      console.error('Error:', err);
+      console.error('Error message:', err.message);
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
+      console.error('Error request:', err.request ? 'Request was made but no response' : 'No request made');
+      
+      let errorMessage = 'Failed to submit application. Please try again.';
+      
+      if (err.response) {
+        // Server responded with error
+        console.error('Server error response:', err.response.data);
+        errorMessage = err.response.data?.message || err.response.data?.error || `Server error: ${err.response.status}`;
+        
+        // Specific error messages
+        if (err.response.status === 401) {
+          errorMessage = 'You must be logged in to apply for a loan. Please login again.';
+        } else if (err.response.status === 400) {
+          errorMessage = err.response.data?.message || 'Invalid application data. Please check your inputs.';
+        } else if (err.response.status === 413) {
+          errorMessage = 'File(s) too large. Maximum total size is 10MB.';
+        }
+      } else if (err.request) {
+        // Request made but no response
+        console.error('No response from server');
+        errorMessage = 'Cannot connect to server. Please check if the backend is running at http://localhost:5000';
+      } else {
+        // Error setting up request
+        console.error('Request setup error:', err.message);
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      
+      // Prevent any redirect - stay on the page to show error
+      console.warn('Staying on page to display error');
     } finally {
       setLoading(false);
+      console.log('Loading state set to false');
     }
   };
 
@@ -124,6 +240,7 @@ function LoanApplication() {
           <div className="form-group">
             <label>Bank Statements (Last 3 Months) *</label>
             <input
+              ref={fileInputRef}
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
               multiple
@@ -155,9 +272,20 @@ function LoanApplication() {
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-            {loading ? 'Submitting...' : 'Submit Application'}
+          <button 
+            type="submit" 
+            className="btn btn-primary btn-full" 
+            disabled={loading || hasActiveApplication}
+            onClick={() => console.log('Button clicked!')}
+          >
+            {loading ? 'Submitting...' : hasActiveApplication ? 'You Have an Active Application' : 'Submit Application'}
           </button>
+          
+          {hasActiveApplication && (
+            <p style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280' }}>
+              Check your <Link to="/my-loans" style={{ color: '#0891b2' }}>My Loans</Link> page to view your application status.
+            </p>
+          )}
         </form>
       </div>
     </div>

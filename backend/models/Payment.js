@@ -18,8 +18,19 @@ const paymentSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'bank_transfer', 'mobile_money', 'card'],
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'card', 'debit_order', 'easypay'],
     default: 'cash'
+  },
+  bankDetails: {
+    accountHolder: String,
+    accountNumber: String,
+    bankName: String,
+    branchCode: String,
+    accountType: {
+      type: String,
+      enum: ['cheque', 'savings'],
+      default: 'cheque'
+    }
   },
   reference: {
     type: String,

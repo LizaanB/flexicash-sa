@@ -8,6 +8,13 @@ function MyLoans() {
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [bankDetails, setBankDetails] = useState({
+    accountHolder: '',
+    accountNumber: '',
+    bankName: '',
+    branchCode: '',
+    accountType: 'cheque'
+  });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -48,21 +55,84 @@ function MyLoans() {
     setError('');
     setSuccess('');
 
+    // Validate bank details for debit order
+    if (paymentMethod === 'debit_order' || paymentMethod === 'easypay') {
+      if (!bankDetails.accountHolder || !bankDetails.accountNumber || !bankDetails.bankName || !bankDetails.branchCode) {
+        setError('Please fill in all bank account details for debit order');
+        return;
+      }
+    }
+
     try {
-      await api.post('/payments/make-payment', {
+      const paymentData = {
         loanId: selectedLoan._id,
         amount: parseFloat(paymentAmount),
-        paymentMethod
-      });
+        paymentMethod,
+        ...(paymentMethod === 'debit_order' || paymentMethod === 'easypay' ? { bankDetails } : {})
+      };
+
+      await api.post('/payments/make-payment', paymentData);
       
-      setSuccess('Payment recorded successfully!');
+      if (paymentMethod === 'debit_order' || paymentMethod === 'easypay') {
+        setSuccess('Debit order mandate created successfully! Payment will be processed within 1-2 business days.');
+      } else {
+        setSuccess('Payment recorded successfully!');
+      }
+      
       setPaymentAmount('');
       setSelectedLoan(null);
+      setBankDetails({
+        accountHolder: '',
+        accountNumber: '',
+        bankName: '',
+        branchCode: '',
+        accountType: 'cheque'
+      });
       
       // Refresh loans and payments
       fetchLoans();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to record payment');
+    }
+  };
+
+  const handleApproveDebitOrder = async (loanId) => {
+    setError('');
+    setSuccess('');
+
+    // Validate bank details
+    if (!bankDetails.accountHolder || !bankDetails.accountNumber || !bankDetails.bankName || !bankDetails.branchCode) {
+      setError('Please fill in all bank account details');
+      return;
+    }
+    if (bankDetails.accountNumber.length < 8) {
+      setError('Please enter a valid account number');
+      return;
+    }
+    if (bankDetails.branchCode.length !== 6) {
+      setError('Branch code must be 6 digits');
+      return;
+    }
+
+    try {
+      await api.put(`/loans/${loanId}/approve-debit-order`, { bankDetails });
+      
+      setSuccess('✓ DebiCheck mandate approved! Automatic debits will start on the scheduled date.');
+      setBankDetails({
+        accountHolder: '',
+        accountNumber: '',
+        bankName: '',
+        branchCode: '',
+        accountType: 'cheque'
+      });
+      setSelectedLoan(null);
+      
+      // Refresh loans
+      fetchLoans();
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to approve debit order');
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -149,10 +219,130 @@ function MyLoans() {
                   </div>
                 </div>
 
+                {/* Pending DebiCheck Approval */}
+                {loan.debitOrder?.status === 'pending_approval' && (
+                  <div style={{ padding: '1rem', backgroundColor: '#fffbeb', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #fbbf24' }}>
+                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: '#92400e' }}>
+                      🏦 DebiCheck Approval Required
+                    </h4>
+                    <p style={{ fontSize: '0.875rem', color: '#78350f', marginBottom: '1rem' }}>
+                      Your lender has requested to set up a debit order mandate for <strong>R{loan.debitOrder.amount?.toFixed(2)}</strong> per month.
+                      Please provide your bank details to authorize this debit order.
+                    </p>
+                    
+                    <div style={{ padding: '1rem', backgroundColor: '#eff6ff', borderRadius: '4px', border: '1px solid #3b82f6' }}>
+                      <h4 style={{ fontSize: '0.875rem', marginBottom: '0.75rem', color: '#1e40af' }}>
+                        Bank Account Details
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label>Account Holder Name</label>
+                          <input
+                            type="text"
+                            value={bankDetails.accountHolder}
+                            onChange={(e) => setBankDetails({...bankDetails, accountHolder: e.target.value})}
+                            placeholder="Full name"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Account Number</label>
+                          <input
+                            type="text"
+                            value={bankDetails.accountNumber}
+                            onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
+                            placeholder="Account number"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Bank Name</label>
+                          <select
+                            value={bankDetails.bankName}
+                            onChange={(e) => setBankDetails({...bankDetails, bankName: e.target.value})}
+                          >
+                            <option value="">Select Bank</option>
+                            <option value="ABSA">ABSA</option>
+                            <option value="Standard Bank">Standard Bank</option>
+                            <option value="FNB">FNB</option>
+                            <option value="Nedbank">Nedbank</option>
+                            <option value="Capitec">Capitec</option>
+                            <option value="African Bank">African Bank</option>
+                            <option value="TymeBank">TymeBank</option>
+                            <option value="Discovery Bank">Discovery Bank</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Branch Code</label>
+                          <input
+                            type="text"
+                            value={bankDetails.branchCode}
+                            onChange={(e) => setBankDetails({...bankDetails, branchCode: e.target.value})}
+                            placeholder="6-digit code"
+                            maxLength="6"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Account Type</label>
+                          <select
+                            value={bankDetails.accountType}
+                            onChange={(e) => setBankDetails({...bankDetails, accountType: e.target.value})}
+                          >
+                            <option value="cheque">Cheque/Current</option>
+                            <option value="savings">Savings</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ padding: '0.75rem', backgroundColor: '#fef3c7', borderRadius: '4px', marginTop: '1rem', marginBottom: '1rem' }}>
+                      <p style={{ fontSize: '0.75rem', color: '#78350f' }}>
+                        ⚠️ <strong>Authorization:</strong> By approving, you authorize automatic monthly debits of <strong>R{loan.debitOrder.amount?.toFixed(2)}</strong> from your account until the loan is fully paid.
+                      </p>
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        className="btn btn-success"
+                        onClick={() => handleApproveDebitOrder(loan._id)}
+                      >
+                        ✓ Approve DebiCheck
+                      </button>
+                      <button 
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setBankDetails({
+                            accountHolder: '',
+                            accountNumber: '',
+                            bankName: '',
+                            branchCode: '',
+                            accountType: 'cheque'
+                          });
+                        }}
+                      >
+                        Clear Form
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Active DebiCheck Status */}
+                {(loan.debitOrder?.status === 'approved' || loan.debitOrder?.status === 'active') && (
+                  <div style={{ padding: '1rem', backgroundColor: '#d1fae5', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #10b981' }}>
+                    <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: '#065f46' }}>
+                      ✓ DebiCheck Active
+                    </h4>
+                    <div style={{ fontSize: '0.875rem', color: '#047857' }}>
+                      <p>Monthly Debit: <strong>R{loan.debitOrder.amount?.toFixed(2)}</strong></p>
+                      <p>Bank: {loan.debitOrder.bankDetails?.bankName}</p>
+                      <p>Account: ****{loan.debitOrder.bankDetails?.accountNumber?.slice(-4)}</p>
+                      <p>Next Debit: {loan.debitOrder.nextDebitDate ? new Date(loan.debitOrder.nextDebitDate).toLocaleDateString() : 'Pending'}</p>
+                    </div>
+                  </div>
+                )}
+
                 {selectedLoan?._id === loan._id ? (
                   <form onSubmit={handleMakePayment} style={{ paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
                     <h4 style={{ marginBottom: '1rem' }}>Make Payment</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end', marginBottom: (paymentMethod === 'easypay' || paymentMethod === 'debit_order') ? '1rem' : '0' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label>Amount</label>
                         <input
@@ -170,21 +360,125 @@ function MyLoans() {
                         <label>Payment Method</label>
                         <select
                           value={paymentMethod}
-                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          onChange={(e) => {
+                            setPaymentMethod(e.target.value);
+                            setError('');
+                          }}
                         >
                           <option value="cash">Cash</option>
                           <option value="bank_transfer">Bank Transfer</option>
                           <option value="mobile_money">Mobile Money</option>
                           <option value="card">Card</option>
+                          <option value="easypay">🏦 EasyPay Debit Order</option>
+                          <option value="debit_order">Debit Order</option>
                         </select>
                       </div>
+                      {(paymentMethod !== 'easypay' && paymentMethod !== 'debit_order') && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button type="submit" className="btn btn-success">Submit Payment</button>
+                          <button type="button" className="btn btn-secondary" onClick={() => setSelectedLoan(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bank Details for Debit Order */}
+                    {(paymentMethod === 'easypay' || paymentMethod === 'debit_order') && (
+                      <div style={{ padding: '1rem', backgroundColor: '#eff6ff', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #93c5fd' }}>
+                        <h4 style={{ fontSize: '0.875rem', marginBottom: '0.75rem', color: '#1e40af' }}>
+                          🏦 Bank Account Details for Debit Order
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="form-group">
+                            <label>Account Holder Name</label>
+                            <input
+                              type="text"
+                              value={bankDetails.accountHolder}
+                              onChange={(e) => setBankDetails({...bankDetails, accountHolder: e.target.value})}
+                              placeholder="Full name"
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Account Number</label>
+                            <input
+                              type="text"
+                              value={bankDetails.accountNumber}
+                              onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
+                              placeholder="Account number"
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Bank Name</label>
+                            <select
+                              value={bankDetails.bankName}
+                              onChange={(e) => setBankDetails({...bankDetails, bankName: e.target.value})}
+                              required
+                            >
+                              <option value="">Select Bank</option>
+                              <option value="ABSA">ABSA</option>
+                              <option value="Standard Bank">Standard Bank</option>
+                              <option value="FNB">FNB</option>
+                              <option value="Nedbank">Nedbank</option>
+                              <option value="Capitec">Capitec</option>
+                              <option value="African Bank">African Bank</option>
+                              <option value="TymeBank">TymeBank</option>
+                              <option value="Discovery Bank">Discovery Bank</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Branch Code</label>
+                            <input
+                              type="text"
+                              value={bankDetails.branchCode}
+                              onChange={(e) => setBankDetails({...bankDetails, branchCode: e.target.value})}
+                              placeholder="6-digit code"
+                              maxLength="6"
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Account Type</label>
+                            <select
+                              value={bankDetails.accountType}
+                              onChange={(e) => setBankDetails({...bankDetails, accountType: e.target.value})}
+                              required
+                            >
+                              <option value="cheque">Cheque/Current</option>
+                              <option value="savings">Savings</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ padding: '0.75rem', backgroundColor: '#fef3c7', borderRadius: '4px', marginTop: '1rem' }}>
+                          <p style={{ fontSize: '0.75rem', color: '#78350f', marginBottom: '0.5rem' }}>
+                            ⚠️ <strong>Debit Order Authorization</strong>
+                          </p>
+                          <p style={{ fontSize: '0.75rem', color: '#78350f' }}>
+                            By submitting, you authorize {paymentMethod === 'easypay' ? 'EasyPay' : 'us'} to deduct <strong>R{paymentAmount || loan.monthlyPayment.toFixed(2)}</strong> from your account on the due date.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(paymentMethod === 'easypay' || paymentMethod === 'debit_order') && (
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button type="submit" className="btn btn-success">Submit Payment</button>
-                        <button type="button" className="btn btn-secondary" onClick={() => setSelectedLoan(null)}>
+                        <button type="submit" className="btn btn-success">✓ Authorize Debit Order</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => {
+                          setSelectedLoan(null);
+                          setBankDetails({
+                            accountHolder: '',
+                            accountNumber: '',
+                            bankName: '',
+                            branchCode: '',
+                            accountType: 'cheque'
+                          });
+                        }}>
                           Cancel
                         </button>
                       </div>
-                    </div>
+                    )}
                   </form>
                 ) : (
                   <button 

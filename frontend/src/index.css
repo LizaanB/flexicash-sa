@@ -314,6 +314,31 @@ tbody tr:hover {
   color: #6b7280;
 }
 
+/* PWA Mobile Optimizations */
+@media (display-mode: standalone) {
+  body {
+    /* Add safe area padding for notched devices */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .navbar {
+    padding-top: calc(1rem + env(safe-area-inset-top));
+  }
+}
+
+/* Touch-friendly buttons on mobile */
+@media (max-width: 768px) {
+  button {
+    min-height: 44px; /* iOS recommended touch target */
+    min-width: 44px;
+  }
+  
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .navbar-content {
@@ -334,4 +359,16 @@ tbody tr:hover {
     margin: 20px auto;
     padding: 1rem;
   }
+  
+  /* Stack tables vertically on mobile */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent pull-to-refresh on mobile PWA */
+body {
+  overscroll-behavior-y: contain;
 }

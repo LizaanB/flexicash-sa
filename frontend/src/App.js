@@ -8,12 +8,15 @@ import CustomerDashboard from './components/CustomerDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import LoanApplication from './components/LoanApplication';
 import MyLoans from './components/MyLoans';
+import InstallPrompt from './components/InstallPrompt';
+import OfflineDetector from './components/OfflineDetector';
+import Loading from './components/Loading';
 
 const PrivateRoute = ({ children, requiredRole }) => {
   const { user, loading } = useContext(AuthContext);
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <Loading message="Loading your account..." />;
   }
 
   if (!user) {
@@ -80,7 +83,9 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
+      <OfflineDetector />
       <AppRoutes />
+      <InstallPrompt />
     </AuthProvider>
   );
 }

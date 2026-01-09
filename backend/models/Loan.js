@@ -73,6 +73,33 @@ const loanSchema = new mongoose.Schema({
   dueDate: {
     type: Date
   },
+  debitOrder: {
+    status: {
+      type: String,
+      enum: ['none', 'pending_approval', 'approved', 'active', 'cancelled'],
+      default: 'none'
+    },
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    requestedAt: Date,
+    approvedAt: Date,
+    bankDetails: {
+      accountHolder: String,
+      accountNumber: String,
+      bankName: String,
+      branchCode: String,
+      accountType: String
+    },
+    amount: Number,
+    frequency: {
+      type: String,
+      enum: ['monthly', 'bi-weekly', 'weekly'],
+      default: 'monthly'
+    },
+    nextDebitDate: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now
