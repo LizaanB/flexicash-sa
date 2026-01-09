@@ -10,7 +10,7 @@ function LoanApplication() {
   
   const [formData, setFormData] = useState({
     amount: '',
-    duration: '1', // Fixed to 1 month
+    duration: '1',
     purpose: ''
   });
   const [bankStatements, setBankStatements] = useState([]);
@@ -222,8 +222,31 @@ function LoanApplication() {
               placeholder="Enter amount (Max R5,000)"
             />
             <small style={{ color: '#6b7280', display: 'block', marginTop: '0.25rem' }}>
-              Quick cash loans up to R5,000 - Repayable in 1 month
+              Quick cash loans up to R5,000
             </small>
+          </div>
+
+          <div className="form-group">
+            <label>Loan Duration (Months)</label>
+            <select
+              name="duration"
+              value={formData.duration}
+              onChange={handleChange}
+              required
+            >
+              <option value="1">1 month</option>
+              <option value="2">2 months</option>
+              <option value="3">3 months</option>
+              <option value="4">4 months</option>
+              <option value="5">5 months</option>
+              <option value="6">6 months</option>
+              <option value="7">7 months</option>
+              <option value="8">8 months</option>
+              <option value="9">9 months</option>
+              <option value="10">10 months</option>
+              <option value="11">11 months</option>
+              <option value="12">12 months</option>
+            </select>
           </div>
 
           <div className="form-group">
@@ -264,11 +287,11 @@ function LoanApplication() {
 
           {loanCalc && (
             <div className="alert alert-info" style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.5rem' }}>Loan Summary (1 Month Term)</h4>
+              <h4 style={{ marginBottom: '0.5rem' }}>Loan Summary ({formData.duration} Month{formData.duration > 1 ? 's' : ''} Term)</h4>
               <p><strong>Loan Amount:</strong> R{parseFloat(formData.amount).toLocaleString()}</p>
               <p><strong>Interest (30%):</strong> R{(parseFloat(formData.amount) * 0.30).toLocaleString()}</p>
               <p><strong>Total to Repay:</strong> R{loanCalc.total.toLocaleString()}</p>
-              <p><strong>Due in 1 Month:</strong> R{loanCalc.monthly.toFixed(2)}</p>
+              <p><strong>Monthly Payment:</strong> R{loanCalc.monthly.toFixed(2)}</p>
             </div>
           )}
 
