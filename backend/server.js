@@ -35,9 +35,14 @@ const authLimiter = rateLimit({
   message: 'Too many login attempts, please try again after 15 minutes.'
 });
 
-// CORS Configuration - Allow all origins for mobile app
+// CORS Configuration - Production URLs
 const corsOptions = {
-  origin: true, // Allow all origins (mobile apps need this)
+  origin: [
+    'http://localhost:3000',
+    'https://flexicash-sa-5bsw.vercel.app',
+    'https://flexicash-sa-5bsw-git-main-lizaans-projects.vercel.app',
+    'https://flexicash-sa-5bsw-8cyt2xd5b-lizaans-projects.vercel.app'
+  ],
   credentials: true,
   optionsSuccessStatus: 200
 };
